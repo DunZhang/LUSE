@@ -35,7 +35,7 @@ if __name__ == "__main__":
     conf.save_step = 5000
 
     conf.desc = "None"
-    conf.loss_type = "mpmn" # 损失函数，目前只支持这个
+    conf.loss_type = "bce" # mpmn:多正例多负例， bce loss
     conf.pooling_mode = "cls"
     conf.neg_type = "batch" # 负例类型，目前只支持这个
     conf.score_scale = 15.0

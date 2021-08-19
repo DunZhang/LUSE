@@ -5,6 +5,7 @@ from NLPAugmenter import NLPAugmenter
 from MoCoQueue import MoCoQueue
 import os
 import torch
+import torch.nn.functional as F
 import random
 import numpy as np
 from transformers import AdamW, get_linear_schedule_with_warmup
@@ -52,10 +53,15 @@ def train_once(model: SentenceEncoder, sens: List[str], nlp_augmenter: NLPAugmen
     aug_vecs = nlp_augmenter.augment(model=model, sens=sens, inference_fn=inference_fn, conf=conf)
     aug_vecs.append(vecs)
     aug_vecs = torch.cat(aug_vecs, dim=0)  # bsz*n, hiddensize
-    scores = aug_vecs.mm(aug_vecs.t()) * conf.score_scale
-    log_prob = torch.nn.functional.log_softmax(scores, dim=1)
-    loss = -1 * (aug_count + 1) * log(aug_count + 1) - log_prob.masked_select(
-        mask_for_batch_pos).sum() / (conf.batch_size * aug_count + conf.batch_size)
+    scores = aug_vecs.mm(aug_vecs.t())
+    if conf.loss_type == "mpmn":
+        scores = scores * conf.score_scale
+        log_prob = torch.nn.functional.log_softmax(scores, dim=1)
+        loss = -1 * (aug_count + 1) * log(aug_count + 1) - log_prob.masked_select(
+            mask_for_batch_pos).sum() / (conf.batch_size * aug_count + conf.batch_size)
+    elif conf.loss_type == "bce":
+        scores = (1 + scores) / 2
+        loss = F.binary_cross_entropy(scores, mask_for_batch_pos)
     return loss
 
 
@@ -98,8 +104,10 @@ def train(conf: TrainConfig):
     for i in range(mask_for_batch_pos.shape[0]):
         for j in range(1 + aug_count):
             mask_for_batch_pos[i, i % conf.batch_size + j * conf.batch_size] = 1
-    mask_for_batch_pos = mask_for_batch_pos.bool().to(device)
-
+    if conf.loss_type == "mpmn":
+        mask_for_batch_pos = mask_for_batch_pos.bool().to(device)
+    elif conf.loss_type == "bce":
+        mask_for_batch_pos = mask_for_batch_pos.float().to(device)
     # data augmennter
     nlp_augmenter = NLPAugmenter(stop_words_path=conf.stop_words_path, synonym_path=conf.synonym_path,
                                  eda_count=conf.eda_count, dropout_count=conf.dropout_count)
@@ -121,7 +129,6 @@ def train(conf: TrainConfig):
     elif conf.optim_type == "lookahead":
         logger.info("使用lookahead优化器")
         optimizer = optim.Lookahead(AdamW(optimizer_grouped_parameters, lr=conf.lr, eps=1e-8))
-
 
     total_steps = epoch_steps * conf.num_epochs
     if conf.warmup_proportion_or_steps < 1:
