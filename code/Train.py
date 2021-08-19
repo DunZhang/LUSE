@@ -46,7 +46,7 @@ def inference_fn(model: SentenceEncoder, batch_sens: List[str], conf: TrainConfi
 
 # TODO use MOCO
 def train_once(model: SentenceEncoder, sens: List[str], nlp_augmenter: NLPAugmenter,
-               conf: TrainConfig, mask_for_batch_pos: torch.Tensor = None,
+               conf: TrainConfig, mask_for_batch_pos: torch.Tensor = None, mask_for_diag: torch.Tensor = None,
                moco_queue: MoCoQueue = None):
     vecs = inference_fn(model=model, batch_sens=sens, conf=conf)
     aug_count = conf.eda_count + conf.dropout_count
@@ -60,6 +60,7 @@ def train_once(model: SentenceEncoder, sens: List[str], nlp_augmenter: NLPAugmen
         loss = -1 * (aug_count + 1) * log(aug_count + 1) - log_prob.masked_select(
             mask_for_batch_pos).sum() / (conf.batch_size * aug_count + conf.batch_size)
     elif conf.loss_type == "bce":
+        scores.masked_fill_(mask_for_diag, 0.99999)
         scores = (1 + scores) / 2
         loss = F.binary_cross_entropy(scores, mask_for_batch_pos)
     return loss
@@ -101,9 +102,13 @@ def train(conf: TrainConfig):
     aug_count = conf.eda_count + conf.dropout_count
     mask_for_batch_pos = torch.zeros((conf.batch_size * (aug_count + 1), conf.batch_size * (aug_count + 1)),
                                      requires_grad=False)
+    mask_for_diag = torch.zeros((conf.batch_size * (aug_count + 1), conf.batch_size * (aug_count + 1)),
+                                requires_grad=False)
     for i in range(mask_for_batch_pos.shape[0]):
+        mask_for_diag[i, i] = 1
         for j in range(1 + aug_count):
             mask_for_batch_pos[i, i % conf.batch_size + j * conf.batch_size] = 1
+    mask_for_diag = mask_for_diag.bool().to(device)
     if conf.loss_type == "mpmn":
         mask_for_batch_pos = mask_for_batch_pos.bool().to(device)
     elif conf.loss_type == "bce":
@@ -146,7 +151,7 @@ def train(conf: TrainConfig):
         for step, batch_sens in enumerate(data_iter):
             step += 1
             loss = train_once(model=model, sens=batch_sens, nlp_augmenter=nlp_augmenter, conf=conf,
-                              mask_for_batch_pos=mask_for_batch_pos, moco_queue=None)
+                              mask_for_batch_pos=mask_for_batch_pos, mask_for_diag=mask_for_diag, moco_queue=None)
             loss.backward()
             # 梯度裁剪
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
