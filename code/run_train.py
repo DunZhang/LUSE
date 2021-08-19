@@ -14,13 +14,13 @@ for name in CLUE_CORPUS_NAMES:
 all_paths = all_paths
 if __name__ == "__main__":
     conf = TrainConfig()
-    conf.pretrained_bert_dir = "../PublicData/RBT3" # 加载预训练模型
+    conf.pretrained_bert_dir = "../PublicData/BERT" # 加载预训练模型
     conf.synonym_path = "../PublicData/word_synonyms.json" # 缓存的同义词词典
     conf.stop_words_path = "../PublicData/hit_stopwords.txt" # 停用词位置
     conf.data_path_or_list = all_paths
-    conf.out_dir = "../output/rbt3_train" # 存储目录
+    conf.out_dir = "../output/bert_train" # 存储目录
     conf.optim_type = "adam" # 优化器
-    conf.batch_size = 128
+    conf.batch_size = 8
     conf.steps = len(all_paths) * NUM_LINES_PER_FILE // conf.batch_size
     conf.eda_count = 4 # eda增强数量
     conf.dropout_count = 4 # dropout增强数量

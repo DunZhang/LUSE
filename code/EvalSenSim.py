@@ -61,11 +61,12 @@ if __name__ == "__main__":
         "lcqmc": ("lcqmc_train.txt", "lcqmc_dev.txt"),
     }
     data_dir = r"G:\Codes\LUSE\eval\data"
-    # model_path = r"G:\Data\simbert_torch"
-    model_path = r"G:\Data\RBT3"
-    # model_path = "../output/train1/step-45000"
-    train_count, test_count = 20000, 1000000
-    use_whiten = True
+    model_path = r"G:\Data\simbert_torch"
+    # model_path = r"G:\Data\RBT3"
+    # model_path = r"G:\Codes\LUSE\output\bert_train\step-60000"
+    # model_path = r"G:\Codes\LUSE\output\rbt3_train\step-55000-V2"
+    train_count, test_count = 20000, 10000
+    use_whiten = False
     # 开始检测
     print("DataSet,AUC,Kendall,Spearman,Pearson")
     for k, v in path_info.items():
